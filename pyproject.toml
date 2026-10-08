@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "knndm"
+version = "0.1.0"
+description = "Bit-exact Python port of CAST::knndm (k-fold nearest neighbour distance matching) with optional Rust kernels"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.22", "scipy>=1.8"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["python"]
+
+[tool.setuptools.package-data]
+# Built by `pixi run build-rust`; optional (falls back to the Python backend).
+knndm = ["knndm_rs.dll", "libknndm_rs.so", "libknndm_rs.dylib"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

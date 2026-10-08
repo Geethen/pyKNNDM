@@ -1,0 +1,10 @@
+.venv/
+.pixi/
+target/
+__pycache__/
+*.pyc
+.pytest_cache/
+python/knndm/*.dll
+python/knndm/*.so
+python/knndm/*.dylib
+prof.out

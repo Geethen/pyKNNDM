@@ -1,0 +1,5 @@
+cat(sum(c(1, 2^-60, -1)), colMeans(matrix(c(1, 2^-60, -1),3)), cumsum(c(1,2^-60,-1))[3], "\n")
+x <- c(0.1, 0.2, 0.3, 1e16, -1e16, 0.7)
+cat(sprintf("%.17g", c(sum(x), mean(x), colMeans(matrix(x,6)))), "\n")
+print(body(duplicated.matrix)); print(base:::duplicated.matrix)
+print(base:::unique.matrix)

@@ -1,0 +1,18 @@
+[package]
+name = "knndm"
+version = "0.1.0"
+edition = "2021"
+description = "Bit-exact kernels for the knndm Python package (C ABI, loaded via ctypes)"
+
+[lib]
+name = "knndm_rs"
+crate-type = ["cdylib", "rlib"]
+
+# Intentionally dependency-free: no build scripts or proc-macros to execute.
+[dependencies]
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"

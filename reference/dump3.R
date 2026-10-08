@@ -1,0 +1,12 @@
+show <- function(name, f) { cat("\n#### ", name, "\n", sep=""); print(f) }
+show("createFolds", caret::createFolds)
+show("quantile.default", stats:::quantile.default)
+show("cut.default", base::cut.default)
+show("presort_stat_fn", environment(twosamples::wass_stat)$presort_stat_fn)
+cat("def_power:", environment(twosamples::wass_stat)$def_power, "\n")
+show("ks.c psmirnov_exact", stats:::psmirnov_exact)
+show("psmirnov_asymp", stats:::psmirnov_asymp)
+show("knnx.dist", FNN::knnx.dist)
+show("knn.dist", FNN::knn.dist)
+show("svd", base::svd)
+show("La.svd", base::La.svd)
