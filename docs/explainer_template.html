@@ -1,0 +1,459 @@
+<title>How knndm Builds Folds</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a single reading column (~68ch) with figures that break wider; a field-notebook feel built on survey-map greys. */
+:root {
+  --bg: #f1f3f0;
+  --surface: #ffffff;
+  --ink: #1b2320;
+  --muted: #5a6661;
+  --rule: #d3d9d4;
+  --accent: #1d6b58;
+  --accent-soft: #d6ebe3;
+  --pred: #8d9893;
+  --gij: #c0392b;
+  --gj: #6b7280;
+  --gjs: #1d6b58;
+  --f1: #2f6fcb; --f2: #d9792b; --f3: #2e9a72; --f4: #b9437f; --f5: #7a5cc7;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --step: 1.25;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111614; --surface: #19201d; --ink: #e2e9e5; --muted: #9aa7a1; --rule: #2b3531;
+    --accent: #5cc4a3; --accent-soft: #1d3a31; --pred: #6d7a74; --gij: #ef7b6b; --gj: #a3acb4; --gjs: #5cc4a3;
+    --f1: #6aa3f0; --f2: #f0a35e; --f3: #5cc79c; --f4: #e07bb0; --f5: #a98cf0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111614; --surface: #19201d; --ink: #e2e9e5; --muted: #9aa7a1; --rule: #2b3531;
+  --accent: #5cc4a3; --accent-soft: #1d3a31; --pred: #6d7a74; --gij: #ef7b6b; --gj: #a3acb4; --gjs: #5cc4a3;
+  --f1: #6aa3f0; --f2: #f0a35e; --f3: #5cc79c; --f4: #e07bb0; --f5: #a98cf0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 400 1.0625rem/1.65 var(--body); }
+.wrap { max-width: 68rem; margin: 0 auto; padding-inline: 16px; padding-block: 2.5rem 4rem; }
+.col { max-width: 42rem; }
+header { display: grid; gap: .75rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--rule); margin-bottom: 2rem; }
+.eyebrow { font: 600 .75rem/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(2rem, 5vw, 3.25rem)/1.05 var(--display); margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+h2 { font: 700 1.6rem/1.2 var(--display); margin: 0 0 .75rem; text-wrap: balance; }
+h3 { font: 600 1.1rem/1.3 var(--display); margin: 0 0 .4rem; }
+p { margin: 0 0 1rem; }
+.lede { font-size: 1.2rem; color: var(--muted); max-width: 40rem; }
+section { display: grid; gap: 1.25rem; padding-block: 2.25rem; border-bottom: 1px solid var(--rule); }
+.mono, code { font-family: var(--mono); font-size: .88em; }
+code { background: var(--accent-soft); padding: .05em .35em; border-radius: 3px; }
+.sym { font-style: italic; font-weight: 600; }
+.two { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); align-items: start; }
+.two > * { min-width: 0; }
+figure { margin: 0; display: grid; gap: .5rem; }
+figcaption { font-size: .9rem; color: var(--muted); }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: .75rem; }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--mono); font-size: 11px; fill: var(--muted); }
+.axis line, .axis path { stroke: var(--rule); }
+.legend { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font: 400 .8rem/1.4 var(--mono); color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: .4rem; }
+.sw { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.defs { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); }
+.def { border-top: 3px solid var(--c); padding-top: .6rem; }
+.def h3 { display: flex; align-items: baseline; gap: .5rem; }
+.def p { font-size: .95rem; margin: 0; }
+ol.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: .9rem; counter-reset: s; }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 2.2rem 1fr; gap: .75rem; align-items: start; }
+ol.steps li::before { content: counter(s); font: 700 1.1rem/2.2rem var(--display); text-align: center; color: var(--accent); border: 1.5px solid var(--accent); border-radius: 50%; width: 2.2rem; height: 2.2rem; }
+ol.steps p { margin: 0; }
+.stats { display: flex; flex-wrap: wrap; gap: .5rem 1.75rem; font-family: var(--mono); font-size: .9rem; }
+.stats b { font-weight: 600; color: var(--ink); }
+.stats span { color: var(--muted); }
+.control { display: grid; gap: .5rem; grid-template-columns: auto 1fr auto; align-items: center; }
+.control label { font: 600 .85rem/1 var(--mono); }
+.control output { font: 600 1rem/1 var(--mono); min-width: 9ch; text-align: right; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+input[type=range]:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.btnrow { display: flex; flex-wrap: wrap; gap: .5rem; }
+button { font: 600 .8rem/1 var(--mono); padding: .5rem .75rem; border-radius: 4px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; }
+button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.callout { border-left: 3px solid var(--accent); padding: .25rem 0 .25rem 1rem; color: var(--ink); }
+.list { display: grid; gap: 1rem; }
+.item { display: grid; gap: .25rem; }
+.item h3 { font-size: 1.05rem; }
+.item p { margin: 0; font-size: .98rem; }
+.tag { font: 600 .68rem/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: .25rem .45rem; border-radius: 3px; background: var(--accent-soft); color: var(--accent); justify-self: start; }
+.tag.port { background: transparent; border: 1px solid var(--rule); color: var(--muted); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; font: 400 .82rem/1.4 var(--mono); width: 100%; min-width: 30rem; }
+th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+th { color: var(--muted); font-weight: 600; }
+td.num { text-align: right; }
+footer { padding-top: 2rem; font-size: .85rem; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">CAST::knndm · spatial cross-validation</div>
+    <h1>How knndm builds folds</h1>
+    <p class="lede">k-fold Nearest Neighbour Distance Matching chooses cross-validation folds so that the distances a model is tested at look like the distances it will predict at. This page walks through every step on a real run of the algorithm.</p>
+  </header>
+
+  <section class="col" aria-labelledby="problem">
+    <h2 id="problem">The problem with random folds</h2>
+    <p>Field samples are rarely spread evenly. They come in clusters: along roads, around stations, inside study sites. A map, though, is predicted everywhere. With random k-fold cross-validation, almost every test sample still has a close neighbour from the same cluster in the training set, so the model is tested on easy interpolation. The error estimate comes out too optimistic for the places the map actually covers.</p>
+    <p>knndm fixes the folds rather than the model. It holds out whole groups of nearby samples, choosing how coarse those groups are so that test samples end up as far from their training data as prediction locations are from theirs.</p>
+  </section>
+
+  <section aria-labelledby="distances">
+    <div class="col">
+      <h2 id="distances">Three nearest-neighbour distances</h2>
+      <p>Everything in knndm is measured with one quantity: the distance from a point to its nearest training sample. It is computed for three sets of points, and the method compares their empirical cumulative distributions (ECDFs).</p>
+    </div>
+    <div class="defs">
+      <div class="def" style="--c: var(--gij)"><h3><span class="sym">G<sub>ij</sub></span> prediction → sample</h3><p>For each prediction location, the distance to the nearest training sample. This is the situation the model faces when it makes the map.</p></div>
+      <div class="def" style="--c: var(--gj)"><h3><span class="sym">G<sub>j</sub></span> sample → sample</h3><p>For each training sample, the distance to its nearest other sample. This is what leave-one-out or random CV tests.</p></div>
+      <div class="def" style="--c: var(--gjs)"><h3><span class="sym">G<sub>j</sub>*</span> CV distance</h3><p>For each training sample, the distance to the nearest sample in a <em>different fold</em>. This is what a given fold design tests. knndm tunes the folds to make it match <span class="sym">G<sub>ij</sub></span>.</p></div>
+    </div>
+    <div class="two">
+      <figure>
+        <div class="panel"><svg id="mapIntro" viewBox="0 0 520 520" role="img" aria-label="Map of clustered training samples and uniformly spread prediction locations"></svg></div>
+        <figcaption><span id="introCaption"></span></figcaption>
+        <div class="legend"><span><i class="dot" style="background:var(--ink)"></i>training sample</span><span><i class="dot" style="background:var(--pred);opacity:.6"></i>prediction location</span></div>
+      </figure>
+      <figure>
+        <div class="panel"><svg id="ecdfIntro" viewBox="0 0 560 360" role="img" aria-label="ECDFs of the three distance distributions"></svg></div>
+        <figcaption>Random 5-fold CV (<span class="sym">G<sub>j</sub>*</span>, random) barely differs from <span class="sym">G<sub>j</sub></span>: test samples sit right next to training samples, while prediction locations are much further away. The shaded gap is the Wasserstein distance <span class="sym">W</span>.</figcaption>
+        <div class="legend"><span><i class="sw" style="background:var(--gij)"></i>G<sub>ij</sub></span><span><i class="sw" style="background:var(--gj)"></i>G<sub>j</sub></span><span><i class="sw" style="background:var(--gjs)"></i>G<sub>j</sub>* (random folds)</span></div>
+      </figure>
+    </div>
+    <p class="col callout">The quality of a fold design is the area between the <span class="sym">G<sub>j</sub>*</span> and <span class="sym">G<sub>ij</sub></span> ECDFs, the 1-Wasserstein distance <span class="sym">W</span>, measured in map units (metres here). Smaller is better. knndm searches for the fold design with the smallest <span class="sym">W</span>.</p>
+  </section>
+
+  <section aria-labelledby="algo">
+    <div class="col">
+      <h2 id="algo">The algorithm, step by step</h2>
+      <p>These are the steps CAST runs, in order, with the defaults <code>k = 10</code>, <code>maxp = 0.5</code>, <code>clustering = "hierarchical"</code>, <code>linkf = "ward.D2"</code> and <code>nk_len = 100</code>. The example on this page uses <code>k = 5</code>.</p>
+    </div>
+    <ol class="steps col">
+      <li><p><b>Measure.</b> Compute <span class="sym">G<sub>ij</sub></span> and <span class="sym">G<sub>j</sub></span> with exact nearest-neighbour search.</p></li>
+      <li><p><b>Decide whether clustering is needed.</b> Run a one-sided Kolmogorov–Smirnov test that prediction distances are larger than sample distances. If <span class="mono">p ≥ 0.05</span>, the samples already cover the area like a random design, and knndm returns ordinary random k-fold CV.</p></li>
+      <li><p><b>Cluster once.</b> Build a hierarchical clustering tree of the sample coordinates (or, with <code>kmeans</code>, run k-means separately for every candidate number of clusters).</p></li>
+      <li><p><b>Try many granularities.</b> For each <span class="sym">nk</span> on a log-spaced grid from <span class="sym">k</span> to <span class="sym">n</span> − 2, cut the tree into <span class="sym">nk</span> clusters and merge them into <span class="sym">k</span> folds (see “From clusters to folds” below).</p></li>
+      <li><p><b>Score.</b> Skip the design if any fold holds more than <code>maxp</code> of the samples. Otherwise compute <span class="sym">G<sub>j</sub>*</span> for these folds and its <span class="sym">W</span> against <span class="sym">G<sub>ij</sub></span>.</p></li>
+      <li><p><b>Keep the best.</b> Return the folds with the smallest <span class="sym">W</span>, and report that <span class="sym">nk</span> as <span class="sym">q</span>. The folds come back as train/test index lists ready for <code>caret::trainControl</code>.</p></li>
+    </ol>
+    <p class="col">Why does a single number of clusters control everything? With few large clusters, whole regions are held out, so test samples are far from training data and <span class="sym">G<sub>j</sub>*</span> overshoots. With many tiny clusters, each fold is a scatter of small groups, which is almost random CV, so <span class="sym">G<sub>j</sub>*</span> undershoots. Somewhere in between, the distances match.</p>
+  </section>
+
+  <section aria-labelledby="explore">
+    <div class="col">
+      <h2 id="explore">Explore the search</h2>
+      <p>Move the slider through every <span class="sym">nk</span> knndm tried on this data. The map shows the resulting 5 folds, the middle chart compares their <span class="sym">G<sub>j</sub>*</span> with <span class="sym">G<sub>ij</sub></span>, and the lower chart shows <span class="sym">W</span> for every candidate.</p>
+    </div>
+    <div class="panel control">
+      <label for="nk">nk</label>
+      <input id="nk" type="range" min="0" max="0" step="1" value="0" aria-describedby="nkOut">
+      <output id="nkOut" for="nk"></output>
+    </div>
+    <div class="btnrow" role="group" aria-label="Jump to a candidate">
+      <button type="button" data-jump="first">Coarsest (nk = k)</button>
+      <button type="button" data-jump="best">knndm's choice</button>
+      <button type="button" data-jump="last">Finest</button>
+    </div>
+    <div class="two">
+      <figure>
+        <div class="panel"><svg id="mapFolds" viewBox="0 0 520 520" role="img" aria-label="Map of samples coloured by fold"></svg></div>
+        <div class="legend" id="foldLegend"></div>
+      </figure>
+      <div class="list">
+        <figure>
+          <div class="panel"><svg id="ecdfFolds" viewBox="0 0 560 300" role="img" aria-label="ECDF of CV distances against prediction distances"></svg></div>
+          <div class="legend"><span><i class="sw" style="background:var(--gij)"></i>G<sub>ij</sub> (target)</span><span><i class="sw" style="background:var(--gjs)"></i>G<sub>j</sub>* for these folds</span></div>
+        </figure>
+        <div class="stats" id="nkStats" aria-live="polite"></div>
+      </div>
+    </div>
+    <figure>
+      <div class="panel"><svg id="wCurve" viewBox="0 0 1000 260" role="img" aria-label="W statistic for each candidate number of clusters"></svg></div>
+      <figcaption>W for every candidate <span class="sym">nk</span> (log scale). The dashed line is random CV. knndm keeps the minimum.</figcaption>
+    </figure>
+  </section>
+
+  <section aria-labelledby="merge">
+    <div class="col">
+      <h2 id="merge">From clusters to folds</h2>
+      <p>Step 4 has to turn <span class="sym">nk</span> clusters into exactly <span class="sym">k</span> folds. CAST does this with a simple, deterministic rule:</p>
+      <ol class="steps">
+        <li><p>Project each cluster’s centroid onto the first principal component of the sample coordinates and sort the clusters along it.</p></li>
+        <li><p>Walking in that order, every cluster with at least <span class="sym">n</span>/<span class="sym">k</span> samples gets a fold of its own.</p></li>
+        <li><p>The remaining clusters are dealt out to the remaining folds in turn, like cards (1, 2, … <span class="sym">k</span>, 1, 2, …), in the same order.</p></li>
+      </ol>
+      <p id="mergeText"></p>
+    </div>
+    <div class="two">
+      <figure>
+        <div class="panel"><svg id="mapMerge" viewBox="0 0 520 520" role="img" aria-label="Cluster centroids projected on the first principal component"></svg></div>
+        <figcaption>Clusters at the chosen <span class="sym">nk</span>, labelled by their rank along the first principal component (arrow), and coloured by the fold they were dealt into.</figcaption>
+      </figure>
+      <figure>
+        <div class="scroll panel"><table id="mergeTable"></table></div>
+        <figcaption>The same clusters in PC1 order. None reaches <span class="sym">n</span>/<span class="sym">k</span> = 30 samples here, so every fold is assembled round-robin from two clusters at opposite ends of the map.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section aria-labelledby="result">
+    <div class="col">
+      <h2 id="result">What knndm returns</h2>
+      <p id="resultText"></p>
+      <p>The result holds the fold label for each sample (<code>clusters</code>), the train and test index lists for each fold (<code>indx_train</code>, <code>indx_test</code>), the three distance vectors <code>Gij</code>, <code>Gj</code> and <code>Gjstar</code>, and <code>W</code> and <code>q</code>. With <code>test_prop</code>, it returns a single train/test split instead, using the same search with <span class="sym">k</span> = 2 and a tolerance on the test share.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="limits">
+    <div class="col">
+      <h2 id="limits">Limitations</h2>
+      <p>knndm is a pragmatic heuristic. Knowing where it is weak helps you read its output.</p>
+    </div>
+    <div class="list col">
+      <div class="item"><span class="tag">Method</span><h3>Only one distance statistic is matched</h3><p>The target is the distribution of nearest-neighbour distances, nothing else. Two fold designs with the same ECDF can test very different parts of the map. Matching geography does not make folds representative in predictor (feature) space, and knndm runs geographic and feature space separately, never jointly.</p></div>
+      <div class="item"><span class="tag">Method</span><h3>CV cannot test beyond the data</h3><p>If prediction locations lie further from the samples than any held-out group can be, <span class="sym">G<sub>j</sub>*</span> cannot reach <span class="sym">G<sub>ij</sub></span> and the minimum <span class="sym">W</span> stays large. knndm still returns folds, but a large residual <span class="sym">W</span> is a sign that the map extrapolates.</p></div>
+      <div class="item"><span class="tag">Method</span><h3>The result depends on the prediction sample</h3><p><span class="sym">G<sub>ij</sub></span> comes from <code>predpoints</code> or from points sampled in <code>modeldomain</code>. Too few points, or a sample that over-represents some part of the area, shifts the target and therefore the chosen folds.</p></div>
+      <div class="item"><span class="tag">Method</span><h3>The cluster-to-fold rule is one-dimensional</h3><p>Folds are assembled by sorting clusters along a single principal axis and dealing them out in turn. Clusters that are neighbours on the map but far apart on that axis can land in different folds, and folds are often stitched from distant pieces, as in the example above. The rule is fast, but nothing optimises it.</p></div>
+      <div class="item"><span class="tag">Method</span><h3>A narrow search</h3><p>Only one tree (or one k-means start per <span class="sym">nk</span>, with <code>nstart = 1</code>) and one linkage are tried, on a fixed grid of <span class="sym">nk</span>. The best design found is the best of about 100 candidates, not the best possible.</p></div>
+      <div class="item"><span class="tag">Method</span><h3>Fold sizes are only bounded above</h3><p><code>maxp</code> stops one fold from dominating, but there is no lower bound. Very small folds give noisy per-fold errors.</p></div>
+      <div class="item"><span class="tag">Method</span><h3>An all-or-nothing gate</h3><p>The KS test at 0.05 decides between random CV and the search. With many prediction points, trivial differences become significant. With few samples, the test can miss real clustering. Either way, the method never compares the two options by their <span class="sym">W</span>.</p></div>
+      <div class="item"><span class="tag">Method</span><h3><span class="sym">W</span> weights all distances equally</h3><p>It is in map units, so it is hard to compare between datasets, and it treats a mismatch at short distances like one in the upper tail, where extrapolation errors concentrate.</p></div>
+      <div class="item"><span class="tag">Implementation</span><h3>Quadratic memory and hidden randomness</h3><p>Hierarchical clustering needs the full n × n distance matrix (R caps it at 65,536 points; 10,000 points already need about 400 MB). k-means and the random fallback depend on the seed, and <code>CreateSpacetimeFolds</code> reseeds R’s global RNG from <code>sample(1:1000, 1)</code>, so later random draws in your script change too.</p></div>
+      <div class="item"><span class="tag">Implementation</span><h3>Quirks in CAST 1.1.2</h3><p><code>knndm_geo</code> evaluates <span class="sym">W</span> twice per <span class="sym">nk</span>, and the second check only tests <code>maxp</code>. With <code>test_prop</code>, a split outside the lower tolerance can therefore still be chosen. The Python port reproduces this on purpose, to stay bit-exact.</p></div>
+      <div class="item"><span class="tag port">This port</span><h3>Scope of the Python version</h3><p>Not ported: <code>modeldomain</code> sampling, and the mahalanobis, gower (categorical) and great-circle distances. With more than 25 predictors, the PCA ordering uses SciPy’s LAPACK and may differ from R in near-tie cases.</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="improve">
+    <div class="col">
+      <h2 id="improve">Ways knndm could improve</h2>
+      <p>Most of these keep the core idea of matching <span class="sym">G<sub>j</sub>*</span> to <span class="sym">G<sub>ij</sub></span> and change how the folds are searched for or judged. The neighbour index in the Rust backend makes re-scoring a fold design cheap, which makes the search-based ideas practical.</p>
+    </div>
+    <div class="list col">
+      <div class="item"><h3>Optimise the cluster-to-fold assignment</h3><p>Start from CAST’s PC1 assignment, then move or swap clusters between folds while <span class="sym">W</span> decreases (local search or simulated annealing), with a penalty for unequal fold sizes. Only the samples whose nearest other-fold neighbour changes need re-scoring.</p></div>
+      <div class="item"><h3>Search wider, then refine</h3><p>Score several linkages and several k-means starts, and refine <span class="sym">nk</span> between the neighbours of the best grid value. Report the best design, and how much better it is than the default.</p></div>
+      <div class="item"><h3>Replace the KS gate with a comparison</h3><p>Always compute <span class="sym">W</span> for random CV as well, and return whichever design has the lower <span class="sym">W</span>. This removes the arbitrary 0.05 threshold.</p></div>
+      <div class="item"><h3>Constrain fold sizes in both directions</h3><p>Add a minimum fold share for k-fold CV, or penalise fold-size variance in the objective, so per-fold errors stay stable.</p></div>
+      <div class="item"><h3>Match a richer target</h3><p>Weight the upper tail of the distance distribution, match k-th nearest-neighbour distances as well as the first, or combine geographic and feature-space distances in one objective.</p></div>
+      <div class="item"><h3>Weight the prediction domain</h3><p>Weight prediction points by the area or importance they represent, and sample them in strata, so that <span class="sym">G<sub>ij</sub></span> describes the map users actually care about.</p></div>
+      <div class="item"><h3>Report diagnostics and uncertainty</h3><p>Return the <span class="sym">W</span>-versus-<span class="sym">nk</span> curve, the fold sizes and the merge table (as this page does), and bootstrap over prediction samples to show how stable the choice is. When the minimum <span class="sym">W</span> is large relative to typical <span class="sym">G<sub>ij</sub></span>, point users to an area-of-applicability analysis (<code>CAST::aoa</code>).</p></div>
+      <div class="item"><h3>Scale beyond the distance matrix</h3><p>Ward clustering can run on coordinates with a nearest-neighbour chain in linear memory, and mini-batch k-means handles very large samples. These would suit an explicitly non-bit-exact “fast” mode in the Python port.</p></div>
+    </div>
+  </section>
+
+  <footer class="col">
+    <p>All figures come from one run of the bit-exact Python port (<code>knndm(train, pred, k=5, seed=7)</code>) on 150 clustered samples and 600 uniformly spread prediction locations in a 1 km × 1 km area; <code>docs/make_explainer_data.py</code> regenerates them. Method: Linnenbrink, Milà, Ludwig &amp; Meyer (2024), <em>kNNDM CV: k-fold nearest-neighbour distance matching cross-validation for map accuracy estimation</em>, Geoscientific Model Development 17, 5897–5912.</p>
+  </footer>
+</div>
+
+<script id="knndm-data" type="application/json">__DATA__</script>
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById("knndm-data").textContent);
+  const NS = "http://www.w3.org/2000/svg";
+  const FOLD = ["var(--f1)", "var(--f2)", "var(--f3)", "var(--f4)", "var(--f5)"];
+  const fmt = (v, d = 1) => Number(v).toLocaleString("en-GB", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+
+  // ---------- map ----------
+  const MAP = { pad: 34, size: 520 };
+  const mx = x => MAP.pad + (x / 1000) * (MAP.size - 2 * MAP.pad);
+  const my = y => MAP.size - MAP.pad - (y / 1000) * (MAP.size - 2 * MAP.pad);
+  function mapFrame(svg) {
+    clear(svg);
+    const g = el("g", { class: "axis" }, svg);
+    el("rect", { x: MAP.pad, y: MAP.pad, width: MAP.size - 2 * MAP.pad, height: MAP.size - 2 * MAP.pad, fill: "none", stroke: "var(--rule)" }, g);
+    for (const t of [0, 250, 500, 750, 1000]) {
+      el("line", { x1: mx(t), x2: mx(t), y1: my(0), y2: my(0) + 4, stroke: "var(--rule)" }, g);
+      el("text", { x: mx(t), y: my(0) + 16, "text-anchor": "middle" }, g).textContent = t;
+      el("line", { x1: mx(0) - 4, x2: mx(0), y1: my(t), y2: my(t), stroke: "var(--rule)" }, g);
+      el("text", { x: mx(0) - 7, y: my(t) + 4, "text-anchor": "end" }, g).textContent = t;
+    }
+    el("text", { x: MAP.size - MAP.pad, y: MAP.pad - 10, "text-anchor": "end" }, g).textContent = "metres";
+  }
+  function drawPred(svg) {
+    const g = el("g", { opacity: 0.55 }, svg);
+    for (const [x, y] of D.pred) el("circle", { cx: mx(x), cy: my(y), r: 1.6, fill: "var(--pred)" }, g);
+  }
+
+  // ---------- ECDF ----------
+  function ecdfChart(svg, series, opts) {
+    clear(svg);
+    const W = +svg.viewBox.baseVal.width, H = +svg.viewBox.baseVal.height;
+    const m = { l: 44, r: 14, t: 12, b: 36 };
+    const xmax = opts.xmax;
+    const sx = v => m.l + (Math.min(v, xmax) / xmax) * (W - m.l - m.r);
+    const sy = p => H - m.b - p * (H - m.t - m.b);
+    const ax = el("g", { class: "axis" }, svg);
+    for (const p of [0, 0.25, 0.5, 0.75, 1]) {
+      el("line", { x1: m.l, x2: W - m.r, y1: sy(p), y2: sy(p), stroke: "var(--rule)", "stroke-dasharray": p === 0 ? "" : "2 3" }, ax);
+      el("text", { x: m.l - 6, y: sy(p) + 4, "text-anchor": "end" }, ax).textContent = p;
+    }
+    const step = xmax <= 150 ? 25 : xmax <= 300 ? 50 : 100;
+    for (let t = 0; t <= xmax + 1e-9; t += step) {
+      el("text", { x: sx(t), y: H - m.b + 16, "text-anchor": "middle" }, ax).textContent = t;
+    }
+    el("text", { x: W - m.r, y: H - 4, "text-anchor": "end" }, ax).textContent = "distance to nearest training sample (m)";
+    el("text", { x: 4, y: m.t + 2, "dominant-baseline": "hanging" }, ax).textContent = "ECDF";
+    const pathOf = v => {
+      const n = v.length; let d = `M${sx(0)},${sy(0)}`;
+      for (let i = 0; i < n; i++) d += `H${sx(v[i])}V${sy((i + 1) / n)}`;
+      return d + `H${sx(xmax)}`;
+    };
+    if (opts.fillBetween) {
+      const [a, b] = opts.fillBetween;
+      const pts = v => { const n = v.length; const out = [[0, 0]]; for (let i = 0; i < n; i++) { out.push([v[i], i / n]); out.push([v[i], (i + 1) / n]); } out.push([xmax, 1]); return out; };
+      const pa = pts(a), pb = pts(b).reverse();
+      const d = "M" + pa.concat(pb).map(([x, y]) => `${sx(x)},${sy(y)}`).join("L") + "Z";
+      el("path", { d, fill: "var(--accent)", "fill-opacity": 0.14, "fill-rule": "evenodd", stroke: "none" }, svg);
+    }
+    for (const s of series) el("path", { d: pathOf(s.v), fill: "none", stroke: s.color, "stroke-width": s.w || 2, "stroke-dasharray": s.dash || "" }, svg);
+  }
+
+  // ---------- intro ----------
+  const svgIntro = document.getElementById("mapIntro");
+  mapFrame(svgIntro); drawPred(svgIntro);
+  for (const [x, y] of D.train) el("circle", { cx: mx(x), cy: my(y), r: 3.4, fill: "var(--ink)" }, svgIntro);
+  const median = v => v[Math.floor(v.length / 2)];
+  document.getElementById("introCaption").textContent =
+    `${D.n} training samples in ${7} clusters and ${D.pred.length} prediction locations spread over the whole area. ` +
+    `Median distance to the nearest sample: ${fmt(median(D.Gj), 0)} m between samples, ${fmt(median(D.Gij), 0)} m from prediction locations.`;
+  const niceMax = v => Math.ceil(Math.max(...v) / 50) * 50;
+  const XMAX = niceMax(D.Gij.concat(D.random.Gjstar));
+  ecdfChart(document.getElementById("ecdfIntro"), [
+    { v: D.Gj, color: "var(--gj)", dash: "5 4" },
+    { v: D.random.Gjstar, color: "var(--gjs)" },
+    { v: D.Gij, color: "var(--gij)" },
+  ], { xmax: XMAX, fillBetween: [D.random.Gjstar, D.Gij] });
+
+  // ---------- explore ----------
+  const grid = D.grid;
+  const bestIdx = grid.findIndex(g => g.nk === D.q);
+  const slider = document.getElementById("nk");
+  slider.max = grid.length - 1;
+  const svgFolds = document.getElementById("mapFolds");
+  const legend = document.getElementById("foldLegend");
+  legend.innerHTML = FOLD.map((c, i) => `<span><i class="dot" style="background:${c}"></i>fold ${i + 1}</span>`).join("") +
+    `<span><i class="dot" style="background:var(--pred);opacity:.6"></i>prediction location</span>`;
+  mapFrame(svgFolds); drawPred(svgFolds);
+  const foldDots = D.train.map(([x, y]) => el("circle", { cx: mx(x), cy: my(y), r: 3.8, stroke: "var(--surface)", "stroke-width": 0.8 }, svgFolds));
+
+  // W curve
+  const svgW = document.getElementById("wCurve");
+  const WW = 1000, WH = 260, wm = { l: 56, r: 18, t: 14, b: 38 };
+  const nks = grid.map(g => g.nk);
+  const lnMin = Math.log(nks[0]), lnMax = Math.log(nks[nks.length - 1]);
+  const wsx = nk => wm.l + (Math.log(nk) - lnMin) / (lnMax - lnMin) * (WW - wm.l - wm.r);
+  const wMax = Math.ceil(Math.max(D.random.W, ...grid.filter(g => g.valid).map(g => g.W)) / 20) * 20;
+  const wsy = w => WH - wm.b - (w / wMax) * (WH - wm.t - wm.b);
+  const wax = el("g", { class: "axis" }, svgW);
+  for (let t = 0; t <= wMax; t += wMax / 4) {
+    el("line", { x1: wm.l, x2: WW - wm.r, y1: wsy(t), y2: wsy(t), stroke: "var(--rule)", "stroke-dasharray": t ? "2 3" : "" }, wax);
+    el("text", { x: wm.l - 8, y: wsy(t) + 4, "text-anchor": "end" }, wax).textContent = fmt(t, 0);
+  }
+  for (const t of [5, 10, 20, 50, 100, 148]) {
+    el("line", { x1: wsx(t), x2: wsx(t), y1: WH - wm.b, y2: WH - wm.b + 4, stroke: "var(--rule)" }, wax);
+    el("text", { x: wsx(t), y: WH - wm.b + 17, "text-anchor": "middle" }, wax).textContent = t;
+  }
+  el("text", { x: WW - wm.r, y: WH - 4, "text-anchor": "end" }, wax).textContent = "nk, number of clusters";
+  el("text", { x: 4, y: wm.t, "dominant-baseline": "hanging" }, wax).textContent = "W (m)";
+  el("line", { x1: wm.l, x2: WW - wm.r, y1: wsy(D.random.W), y2: wsy(D.random.W), stroke: "var(--gj)", "stroke-dasharray": "6 5" }, svgW);
+  el("text", { x: WW - wm.r, y: wsy(D.random.W) - 6, "text-anchor": "end" }, svgW).textContent = `random CV, W = ${fmt(D.random.W)}`;
+  const valid = grid.filter(g => g.valid);
+  el("path", { d: "M" + valid.map(g => `${wsx(g.nk)},${wsy(g.W)}`).join("L"), fill: "none", stroke: "var(--accent)", "stroke-width": 2 }, svgW);
+  for (const g of valid) el("circle", { cx: wsx(g.nk), cy: wsy(g.W), r: 2.4, fill: "var(--accent)" }, svgW);
+  const best = grid[bestIdx];
+  el("circle", { cx: wsx(best.nk), cy: wsy(best.W), r: 7, fill: "none", stroke: "var(--gij)", "stroke-width": 2 }, svgW);
+  el("text", { x: wsx(best.nk) + 10, y: wsy(best.W) - 8 }, svgW).textContent = `minimum: q = ${best.nk}, W = ${fmt(best.W)}`;
+  const cursor = el("line", { y1: wm.t, y2: WH - wm.b, stroke: "var(--ink)", "stroke-width": 1, "stroke-dasharray": "3 3" }, svgW);
+  const cursorDot = el("circle", { r: 5, fill: "var(--ink)" }, svgW);
+
+  const XFOLD = niceMax(D.Gij.concat(...grid.filter(g => g.valid).map(g => g.Gjstar)));
+  function show(i) {
+    const g = grid[i];
+    slider.value = i;
+    document.getElementById("nkOut").textContent = `nk = ${g.nk}`;
+    g.folds.forEach((f, j) => foldDots[j].setAttribute("fill", FOLD[f - 1]));
+    if (g.valid) {
+      ecdfChart(document.getElementById("ecdfFolds"), [
+        { v: g.Gjstar, color: "var(--gjs)" }, { v: D.Gij, color: "var(--gij)" },
+      ], { xmax: XFOLD, fillBetween: [g.Gjstar, D.Gij] });
+    }
+    const sizes = g.sizes.map((s, k) => `${k + 1}:${s}`).join(" ");
+    document.getElementById("nkStats").innerHTML =
+      `<div><span>W </span><b>${g.valid ? fmt(g.W) + " m" : "rejected (maxp)"}</b></div>` +
+      `<div><span>vs random CV </span><b>${fmt(D.random.W)} m</b></div>` +
+      `<div><span>fold sizes </span><b>${sizes}</b></div>` +
+      (i === bestIdx ? `<div><b style="color:var(--accent)">knndm’s choice</b></div>` : "");
+    cursor.setAttribute("x1", wsx(g.nk)); cursor.setAttribute("x2", wsx(g.nk));
+    cursorDot.setAttribute("cx", wsx(g.nk)); cursorDot.setAttribute("cy", g.valid ? wsy(g.W) : wsy(0));
+    document.querySelectorAll("[data-jump]").forEach(b => {
+      const target = b.dataset.jump === "first" ? 0 : b.dataset.jump === "last" ? grid.length - 1 : bestIdx;
+      b.setAttribute("aria-pressed", String(target === i));
+    });
+  }
+  slider.addEventListener("input", () => show(+slider.value));
+  document.querySelectorAll("[data-jump]").forEach(b => b.addEventListener("click", () => {
+    show(b.dataset.jump === "first" ? 0 : b.dataset.jump === "last" ? grid.length - 1 : bestIdx);
+  }));
+  show(bestIdx);
+
+  // ---------- merge ----------
+  const svgM = document.getElementById("mapMerge");
+  mapFrame(svgM);
+  D.train.forEach(([x, y], j) => el("circle", { cx: mx(x), cy: my(y), r: 3.2, fill: FOLD[best.folds[j] - 1], opacity: 0.55 }, svgM));
+  // PC1 axis through the centre
+  const [vx, vy] = D.pc1_dir, [cx0, cy0] = D.pc1_center;
+  const L = 1500;
+  const ax0 = [cx0 - vx * L, cy0 - vy * L], ax1 = [cx0 + vx * L, cy0 + vy * L];
+  const defs = el("defs", {}, svgM);
+  const clip = el("clipPath", { id: "mapClip" }, defs);
+  el("rect", { x: MAP.pad, y: MAP.pad, width: MAP.size - 2 * MAP.pad, height: MAP.size - 2 * MAP.pad }, clip);
+  const mk = el("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+  el("path", { d: "M0,0L10,5L0,10Z", fill: "var(--ink)" }, mk);
+  el("line", { x1: mx(ax0[0]), y1: my(ax0[1]), x2: mx(ax1[0]), y2: my(ax1[1]), stroke: "var(--ink)", "stroke-width": 1.3, "stroke-dasharray": "6 4", "clip-path": "url(#mapClip)" }, svgM);
+  // arrow head where the axis leaves the frame, pointing towards increasing PC1
+  const tExit = Math.min(...[[vx, cx0], [vy, cy0]].map(([v, c]) => v > 0 ? (1000 - c) / v : v < 0 ? -c / v : Infinity));
+  const ex = cx0 + vx * tExit * 0.97, ey = cy0 + vy * tExit * 0.97;
+  el("line", { x1: mx(ex - vx * 40), y1: my(ey - vy * 40), x2: mx(ex), y2: my(ey), stroke: "var(--ink)", "stroke-width": 1.3, "marker-end": "url(#arrow)" }, svgM);
+  el("text", { x: mx(ex) + (vx > 0 ? -8 : 8), y: my(ey) + 18, "text-anchor": vx > 0 ? "end" : "start", style: "fill:var(--ink)" }, svgM).textContent = "PC1 increases";
+  D.merge_q.forEach((r, rank) => {
+    const [x, y] = r.centroid;
+    const g = el("g", {}, svgM);
+    el("circle", { cx: mx(x), cy: my(y), r: 11, fill: FOLD[r.fold - 1], stroke: "var(--surface)", "stroke-width": 2 }, g);
+    el("text", { x: mx(x), y: my(y) + 4, "text-anchor": "middle", style: "fill:#fff;font-weight:600" }, g).textContent = rank + 1;
+  });
+  const tbl = document.getElementById("mergeTable");
+  tbl.innerHTML = `<thead><tr><th>PC1 rank</th><th class="num">position on PC1</th><th class="num">samples</th><th>≥ n/k?</th><th>fold</th></tr></thead><tbody>` +
+    D.merge_q.map((r, i) => `<tr><td>${i + 1}</td><td class="num">${fmt(r.pc1)}</td><td class="num">${r.size}</td><td>${r.big ? "yes" : "no"}</td>` +
+      `<td><i class="dot" style="background:${FOLD[r.fold - 1]}"></i> ${r.fold}</td></tr>`).join("") + "</tbody>";
+  document.getElementById("mergeText").textContent =
+    `In the example, knndm chose nk = ${D.q}. The table and map show how those ${D.q} clusters became ${D.k} folds: ` +
+    `ranks 1–${D.k} fill folds 1–${D.k}, then ranks ${D.k + 1}–${D.q} fill them again in the same order.`;
+
+  // ---------- result ----------
+  document.getElementById("resultText").textContent =
+    `On this example knndm settled on q = ${D.q} clusters merged into ${D.k} folds, with W = ${fmt(D.W)} m. ` +
+    `Random 5-fold CV on the same samples gives W = ${fmt(D.random.W)} m, about ${Math.round(D.random.W / D.W)} times worse. ` +
+    `The knndm folds test the model at distances close to those it will predict at.`;
+})();
+</script>

@@ -23,6 +23,11 @@ res = knndm(train_df, pred_df, space="feature", clustering="kmeans", seed=1)
 reproduce `set.seed(seed); knndm(...)`, or pass `rng=RRNG(...)` to carry R's
 RNG state across several calls.
 
+For a visual walkthrough of how the algorithm works, its limitations and ideas for
+improving it, open `docs/knndm_explainer.html` (regenerate with
+`python docs/make_explainer_data.py > docs/explainer_data.json`, then rebuild the
+page from `docs/explainer_template.html`).
+
 ## Scope
 
 | CAST feature | Status |
