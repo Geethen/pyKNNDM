@@ -7,6 +7,7 @@
 
 pub mod f80;
 pub mod hclust;
+pub mod kdtree;
 pub mod kmeans;
 pub mod nn;
 pub mod par;

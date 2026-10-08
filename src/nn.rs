@@ -3,6 +3,7 @@
 //! accumulated left to right from 0. Since `sqrt` is correctly rounded and
 //! monotone, `min(sqrt(.)) == sqrt(min(.))`, so values match bit for bit.
 
+use crate::kdtree::KdTree;
 use crate::par::par_map;
 
 #[inline]
@@ -83,28 +84,52 @@ impl NeighbourLists {
 
     /// For each point, the distance to the nearest point in a *different* fold
     /// (`CAST:::cv_distances` / `CAST:::distclust_distmat`).
+    ///
+    /// Most points find an other-fold neighbour in their cached list. The rest
+    /// (fold interiors) query per-fold k-d trees of all other folds.
     pub fn cv_dist(&self, folds: &[i64]) -> Vec<f64> {
         let (n, p, kk) = (self.n, self.p, self.kk);
-        par_map(n, |i| {
-                let fi = folds[i];
-                for t in 0..kk {
-                    let j = self.idx[i * kk + t] as usize;
-                    if folds[j] != fi {
-                        return self.d2[i * kk + t].sqrt();
-                    }
+        let mut out = par_map(n, |i| {
+            let fi = folds[i];
+            for t in 0..kk {
+                let j = self.idx[i * kk + t] as usize;
+                if folds[j] != fi {
+                    return self.d2[i * kk + t].sqrt();
                 }
-                // fall back to a full scan
-                let xi = &self.x[i * p..(i + 1) * p];
-                let mut best = f64::INFINITY;
-                for j in 0..n {
-                    if folds[j] != fi {
-                        let d = sqdist(&self.x[j * p..(j + 1) * p], xi);
-                        if d < best {
-                            best = d;
-                        }
-                    }
+            }
+            f64::NAN // resolved below
+        });
+        let misses: Vec<usize> = (0..n).filter(|&i| out[i].is_nan()).collect();
+        if misses.is_empty() {
+            return out;
+        }
+        // group points by fold label
+        let mut labels: Vec<i64> = folds.to_vec();
+        labels.sort_unstable();
+        labels.dedup();
+        let mut members: Vec<Vec<u32>> = vec![Vec::new(); labels.len()];
+        for (i, f) in folds.iter().enumerate() {
+            let g = labels.binary_search(f).unwrap();
+            members[g].push(i as u32);
+        }
+        let trees: Vec<KdTree> = members.into_iter().map(|m| KdTree::build(&self.x, p, m)).collect();
+        let res = par_map(misses.len(), |t| {
+            let i = misses[t];
+            let gi = labels.binary_search(&folds[i]).unwrap();
+            let q = &self.x[i * p..(i + 1) * p];
+            // the cached list gives a valid upper bound: every listed point is
+            // same-fold, so start from +inf and let the trees do the work
+            let mut best = f64::INFINITY;
+            for (g, tree) in trees.iter().enumerate() {
+                if g != gi {
+                    tree.search(q, &mut best);
                 }
-                best.sqrt()
-            })
+            }
+            best.sqrt()
+        });
+        for (t, &i) in misses.iter().enumerate() {
+            out[i] = res[t];
+        }
+        out
     }
 }
