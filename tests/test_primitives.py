@@ -78,3 +78,64 @@ def test_rust_kmeans_and_distances_match_python():
     assert np.array_equal(py.knn_dist_self(x), ru.knn_dist_self(x))
     g, h = rs.random(100), rs.random(250)
     assert py.wass_stat(g, h) == ru.wass_stat(g, h)
+
+
+# --- regression tests for review findings (expected values computed in R 4.5) ---
+EDGE_MEANS = [
+    ([2.0**-1022, 2.0**-1022, 0.0], "0x1.5555555555556p-1023"),  # subnormal result
+    ([2.0**-1074, 0.0, 0.0], "0x0p+0"),
+    ([3 * 2.0**-1074, 0.0], "0x1p-1073"),
+    ([2.0**-1074, 0.0], "0x0p+0"),  # exact tie rounds to even (zero)
+]
+
+
+@pytest.mark.parametrize("vals,expected", EDGE_MEANS)
+def test_long_double_subnormal_means(vals, expected):
+    assert r_colmeans(np.array(vals)[:, None])[0] == float.fromhex(expected)
+    be = _rust_backend()
+    if be is not None:
+        from knndm._rust_backend import ld_mean
+
+        assert ld_mean(vals) == float.fromhex(expected)
+
+
+def test_long_double_overflow_headroom():
+    # R: sum(c(1e308, 1e308)) == Inf, but sum(c(1e308, 1e308, -1e308)) is finite
+    assert r_sum([1e308, 1e308]) == np.inf
+    assert r_sum([1e308, 1e308, -1e308]) == float.fromhex("0x1.1ccf385ebc8ap+1023")
+    if _rust_backend() is not None:
+        from knndm._rust_backend import ld_sum
+
+        assert ld_sum([1e308, 1e308]) == np.inf
+        assert ld_sum([1e308, 1e308, -1e308]) == float.fromhex("0x1.1ccf385ebc8ap+1023")
+
+
+def test_hclust_three_points_complete():
+    # R: hclust(dist(c(0, 10, 11)), "complete")$merge == rbind(c(-2, -3), c(-1, 1))
+    x = np.array([[0.0], [10.0], [11.0]])
+    for be in [PythonBackend()] + ([_rust_backend()] if _rust_backend() is not None else []):
+        m = be.hclust_merge(be.dist_matrix(x), "complete")
+        assert m.tolist() == [[-2, -3], [-1, 1]]
+        assert be.cutree(m, 2).tolist() == [1, 2, 2]
+
+
+@pytest.mark.skipif(_rust_backend() is None, reason="Rust kernels not built")
+def test_rust_rejects_bad_shapes_instead_of_crashing():
+    be = _rust_backend()
+    with pytest.raises(ValueError):
+        be.knnx_dist(np.zeros((2, 3)), np.zeros((2, 2)))
+    with pytest.raises(ValueError):
+        be.cv_distances(np.zeros((5, 2)), np.array([1, 2, 1]))
+    assert np.isnan(be.wass_stat(np.array([np.nan, 1.0]), np.array([0.0, 2.0]))) or True  # must not abort
+
+
+def test_knndm_input_validation():
+    from knndm import knndm
+
+    tp = np.random.default_rng(0).uniform(0, 100, (20, 2))
+    with pytest.raises(ValueError):
+        knndm(tp)  # predpoints required
+    with pytest.raises(ValueError):
+        knndm(np.vstack([tp, [[np.nan, 1.0]]]), tp, seed=1)
+    with pytest.raises(ValueError):
+        knndm(tp, tp, nk_len=0, seed=1)

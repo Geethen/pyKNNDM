@@ -30,7 +30,9 @@ def _sqdist(query: np.ndarray, data: np.ndarray) -> np.ndarray:
 
 
 def knnx_dist(query: np.ndarray, data: np.ndarray, chunk: int = 2048) -> np.ndarray:
-    """Distance from each query row to its nearest data row."""
+    """Distance from each query row to its nearest data row (inf if no data)."""
+    if data.shape[0] == 0:
+        return np.full(query.shape[0], np.inf)
     res = np.empty(query.shape[0])
     for s in range(0, query.shape[0], chunk):
         res[s : s + chunk] = np.sqrt(_sqdist(query[s : s + chunk], data).min(axis=1))
@@ -73,6 +75,9 @@ def distclust_distmat(distm: np.ndarray, folds: np.ndarray) -> np.ndarray:
     out = np.full(len(folds), np.nan)
     for f in _unique_in_order(folds):
         test = folds == f
+        if not (~test).any():
+            out[test] = np.inf  # min(numeric(0)) in R
+            continue
         out[test] = distm[np.ix_(test, ~test)].min(axis=1)
     return out
 

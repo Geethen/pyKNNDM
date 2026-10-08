@@ -1,0 +1,13 @@
+name,space,n,clustering,seconds,q,W_hex
+geo_500,geographical,500,hierarchical,2,25,0x1.4956ed1c4023ep+6
+geo_500,geographical,500,kmeans,2.35,25,0x1.150f794ac23bcp+6
+geo_1000,geographical,1000,hierarchical,4.56,32,0x1.4aaaca9473425p+7
+geo_1000,geographical,1000,kmeans,5.13,31,0x1.9ea1ffb729a59p+6
+geo_2000,geographical,2000,hierarchical,15.59,26,0x1.f4965313c5163p+6
+geo_2000,geographical,2000,kmeans,17.7,32,0x1.bed2ac4ef39e3p+6
+geo_5000,geographical,5000,hierarchical,102.08,33,0x1.43d554097466ep+5
+geo_5000,geographical,5000,kmeans,111.83,31,0x1.f82401a352122p+5
+feat_500,feature,500,hierarchical,4.12,217,0x1.3b26468a71c9dp-4
+feat_500,feature,500,kmeans,4.50999999999999,130,0x1.bf2ccb47cac01p-5
+feat_2000,feature,2000,hierarchical,29.86,111,0x1.70e3a0d45220bp-4
+feat_2000,feature,2000,kmeans,25.97,72,0x1.c046762d7133cp-5

@@ -124,9 +124,10 @@ pub fn hclust(mut diss: Vec<f64>, n: usize, iopt: i32) -> Vec<[i64; 2]> {
         for (pos, &i) in active.iter().enumerate() {
             if i < n && (nn[i] == i2 || nn[i] == j2) {
                 let mut dm = INF;
-                let base = ioffst(n, i, i + 1) - (i + 1);
+                // row i holds (i, j) for j = i+1..n contiguously
+                let row = ioffst(n, i, i + 1);
                 for &j in &active[pos + 1..] {
-                    let v = diss[base + j];
+                    let v = diss[row + (j - i - 1)];
                     if v < dm {
                         dm = v;
                         jj = j;

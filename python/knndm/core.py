@@ -45,7 +45,7 @@ class KNNDMResult:
 
 def knndm(
     tpoints,
-    predpoints,
+    predpoints=None,
     space: str = "geographical",
     k: int = 10,
     maxp: float = 0.5,
@@ -70,6 +70,10 @@ def knndm(
     an :class:`RRNG` as ``rng``; it is advanced exactly as R's global RNG is.
     ``backend`` is ``"python"``, ``"rust"`` or ``"auto"`` (Rust if available).
     """
+    if predpoints is None:
+        raise ValueError(
+            "predpoints are required: sampling prediction locations from a modeldomain is not ported"
+        )
     if rng is None:
         rng = RRNG(seed if seed is not None else int.from_bytes(np.random.bytes(4), "little"))
     elif seed is not None:
@@ -108,6 +112,8 @@ def knndm(
     if nk_len % 1 != 0:
         raise ValueError("nk_len must be an integer")
     nk_len = int(nk_len)
+    if nk_len < 1:
+        raise ValueError("'length.out' must be a positive number")
 
     if space == "geographical":
         tp = _as_matrix(tpoints)
@@ -115,7 +121,12 @@ def knndm(
         if tp.shape[1] < 2 or pp.shape[1] < 2:
             raise ValueError("geographical tpoints/predpoints need (n, 2) coordinates")
         tp, pp = tp[:, :2], pp[:, :2]
+        if not (np.isfinite(tp).all() and np.isfinite(pp).all()):
+            raise ValueError("coordinates must be finite (sf points cannot have missing coordinates)")
     else:
+        t_names, p_names = _colnames(tpoints), _colnames(predpoints)
+        if t_names is not None and p_names is not None and set(t_names) - set(p_names):
+            raise ValueError("tpoints and predpoints need to contain the predictor data and have the same colnames.")
         tp = _as_matrix(tpoints, numeric_only=True)
         pp = _as_matrix(predpoints, numeric_only=True)
         if tp.shape[1] != pp.shape[1]:
@@ -126,7 +137,11 @@ def knndm(
         if np.isnan(tp).any():
             msgs.append("some training points contain NAs, which will be removed")
             tp = tp[~np.isnan(tp).any(axis=1)]
+        if not (np.isfinite(tp).all() and np.isfinite(pp).all()):
+            raise ValueError("infinite predictor values are not supported")
 
+    if tp.shape[0] < 3 or pp.shape[0] < 1:
+        raise ValueError("need at least 3 training points and 1 prediction point")
     if clustering not in ("kmeans", "hierarchical"):
         raise ValueError("clustering must be one of `kmeans` or `hierarchical`")
     if test_prop is None and not (maxp < 1 and maxp > 1 / k):
@@ -137,6 +152,11 @@ def knndm(
         pp = (pp - center[None, :]) / sc[None, :]
 
     return _knndm_impl(tp, pp, space, k, maxp, minp, test_prop, clustering, linkf, nk_len, rng, be, msgs)
+
+
+def _colnames(x):
+    cols = getattr(x, "columns", None)
+    return [str(c) for c in cols] if cols is not None else None
 
 
 def _as_matrix(x, numeric_only: bool = False) -> np.ndarray:
@@ -183,6 +203,11 @@ def _knndm_impl(tp, pp, space, k, maxp, minp, test_prop, clustering, linkf, nk_l
         W = {nk: math.nan for nk in nks}
         groups: dict[int, np.ndarray] = {}
         rot, pc_center = prcomp_rank1(tp)
+        if tp.shape[1] > 25 or tp.shape[0] < tp.shape[1]:
+            msgs.append(
+                "warning: PCA ordering uses SciPy's LAPACK for >25 predictors (or n < p); "
+                "fold labels may differ from R in rare near-tie cases"
+            )
 
         for nk in nks:
             if clustering == "hierarchical":
@@ -314,10 +339,12 @@ def _create_spacetime_folds(clust: np.ndarray, k: int, rng: RRNG, msgs: list[str
     if k > len(uniq):
         k = len(uniq)
         msgs.append(f"warning: k is higher than number of unique locations. k is set to {k}")
-    if len(uniq) < 2:
-        raise RuntimeError("invalid number of intervals")
+    # set.seed(seed) forces the default `seed = sample(1:1000, 1)` first, and
+    # only then does caret::createFolds fail for a single unit.
     seed = rng.sample_int(1000, 1)[0]
     rng.set_seed(seed)
+    if len(uniq) < 2:
+        raise RuntimeError("invalid number of intervals")
     indx_test = [np.nonzero(clust == u)[0] for u in uniq[:k]]
     indx_train = [np.nonzero(clust != u)[0] for u in uniq[:k]]
     return indx_train, indx_test

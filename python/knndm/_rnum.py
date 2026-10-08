@@ -52,8 +52,20 @@ def _from_double(x: float) -> tuple[int, int]:
 
 
 def _to_double(m: int, e: int) -> float:
-    m, e = _round_bits(m, e, _DBL_BITS)
-    return math.ldexp(m, e) if m else 0.0
+    """Round m * 2^e to binary64 (subnormals keep fewer bits; overflow -> inf)."""
+    if m == 0:
+        return 0.0
+    top = e + abs(m).bit_length() - 1  # exponent of the leading bit
+    bits = _DBL_BITS if top >= -1022 else _DBL_BITS - (-1022 - top)
+    if bits <= 0:
+        # below the smallest subnormal: rounds to 0 or to 2^-1074 (half-even)
+        half = top == -1075 and abs(m) != 1 << (abs(m).bit_length() - 1)
+        v = math.ldexp(1.0, -1074) if half else 0.0
+        return -v if m < 0 else v
+    m, e = _round_bits(m, e, bits)
+    if e + abs(m).bit_length() - 1 > 1023:
+        return math.inf if m > 0 else -math.inf
+    return math.ldexp(m, e)
 
 
 class LongDouble:

@@ -8,3 +8,6 @@ python/knndm/*.dll
 python/knndm/*.so
 python/knndm/*.dylib
 prof.out
+*.egg-info/
+bench/data/
+bench/*.log

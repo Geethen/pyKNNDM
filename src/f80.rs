@@ -132,8 +132,23 @@ impl F80 {
         if self.mant == 0 {
             return 0.0;
         }
-        let (m, e) = round_u128(self.mant as u128, self.exp, false, 53);
-        let v = ldexp(m as f64, e);
+        // value = mant * 2^exp with mant in [2^63, 2^64): the leading bit has
+        // weight 2^(exp + 63). Binary64 keeps 53 bits for normal numbers and
+        // fewer below 2^-1022, never bits below 2^-1074.
+        let top = self.exp + 63;
+        let bits: i32 = if top >= -1022 { 53 } else { (53 - (-1022 - top)).max(0) };
+        let v = if bits == 0 {
+            // below half the smallest subnormal or exactly a tie to zero
+            let half = top == -1075 && self.mant > (1u64 << 63);
+            if half { 2f64.powi(-1074) } else { 0.0 }
+        } else {
+            let (m, e) = round_u128(self.mant as u128, self.exp, false, bits as u32);
+            if e + (128 - (m.leading_zeros() as i32)) - 1 > 1023 {
+                f64::INFINITY
+            } else {
+                ldexp(m as f64, e)
+            }
+        };
         if self.neg {
             -v
         } else {
