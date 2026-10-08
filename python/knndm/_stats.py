@@ -119,7 +119,7 @@ def wass_stat(a: np.ndarray, b: np.ndarray) -> float:
 # --------------------------------------------------------------------------
 # two-sample Kolmogorov-Smirnov test, alternative = "greater"
 # --------------------------------------------------------------------------
-def ks_test_greater_pvalue(x: np.ndarray, y: np.ndarray) -> float:
+def ks_test_greater_pvalue(x: np.ndarray, y: np.ndarray, cumsum=r_cumsum) -> float:
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     x = x[~np.isnan(x)]
@@ -130,7 +130,7 @@ def ks_test_greater_pvalue(x: np.ndarray, y: np.ndarray) -> float:
     w = np.concatenate([x, y])
     o = r_order(w) + 1  # 1-based like R
     steps = np.where(o <= n_x, 1 / n_x, -1 / n_y)
-    z = r_cumsum(steps)
+    z = cumsum(steps)
     ties = len(np.unique(w)) < (n_x + n_y)
     if ties:
         sw = np.sort(w, kind="stable")

@@ -19,7 +19,6 @@ from . import _backend
 from ._kmeans import KMeansError
 from ._rnum import LongDouble, nk_grid, predict_pc1, prcomp_rank1, r_colmeans, r_order, r_scale
 from ._rrng import RRNG
-from ._stats import ks_test_greater_pvalue
 
 
 @dataclass
@@ -160,7 +159,7 @@ def _knndm_impl(tp, pp, space, k, maxp, minp, test_prop, clustering, linkf, nk_l
     Gj = be.knn_dist_self(tp)
     Gij = be.knnx_dist(pp, tp)
 
-    pval = ks_test_greater_pvalue(Gj, Gij)
+    pval = be.ks_greater_pvalue(Gj, Gij)
     if pval >= 0.05:
         if test_prop is not None:
             ntest = math.floor(test_prop * n)

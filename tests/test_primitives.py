@@ -33,7 +33,7 @@ def test_long_double_accumulation():
 
 @pytest.mark.skipif(_rust_backend() is None, reason="Rust kernels not built")
 def test_rust_long_double():
-    from knndm._rust_backend import ld_mean, ld_sum
+    from knndm._rust_backend import ld_cumsum, ld_mean, ld_sum
 
     assert ld_sum([1.0, 2.0**-60, -1.0]) == 2.0**-60
     assert ld_mean([0.1, 0.2, 0.3, 1e16, -1e16, 0.7]) == 0.21660156249999998
@@ -42,6 +42,7 @@ def test_rust_long_double():
         v = rs.normal(0, 10.0 ** rs.integers(-5, 12), rs.integers(1, 50))
         assert ld_sum(v) == r_sum(v)
         assert ld_mean(v) == r_colmeans(v[:, None])[0]
+        assert np.array_equal(ld_cumsum(v), r_cumsum(v))
 
 
 def test_nk_grid():

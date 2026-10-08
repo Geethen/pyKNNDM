@@ -249,3 +249,18 @@ pub unsafe extern "C" fn knndm_ld_sum(x: *const f64, n: usize) -> f64 {
     }
     acc.to_f64()
 }
+
+/// `cumsum(x)` with R's long-double accumulator.
+///
+/// # Safety
+/// `x` and `out` have n doubles.
+#[no_mangle]
+pub unsafe extern "C" fn knndm_ld_cumsum(x: *const f64, n: usize, out: *mut f64) -> i32 {
+    let o = sl_mut(out, n);
+    let mut acc = F80::ZERO;
+    for (i, &v) in sl(x, n).iter().enumerate() {
+        acc = acc.add(F80::from_f64(v));
+        o[i] = acc.to_f64();
+    }
+    0
+}

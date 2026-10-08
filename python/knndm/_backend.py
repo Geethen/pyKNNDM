@@ -23,6 +23,7 @@ class PythonBackend:
     wass_stat = staticmethod(_stats.wass_stat)
     dist_matrix = staticmethod(_stats.euclid_dist_matrix)
     cutree = staticmethod(_hclust.cutree)
+    ks_greater_pvalue = staticmethod(_stats.ks_test_greater_pvalue)
 
     @staticmethod
     def hclust_merge(distmat: np.ndarray, method: str) -> np.ndarray:

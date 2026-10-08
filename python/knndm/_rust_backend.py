@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import _kmeans
+from . import _kmeans, _stats
 from ._hclust import _method_index
 from ._rrng import RRNG
 
@@ -44,6 +44,7 @@ def _load() -> C.CDLL:
         "knndm_cluster_pc1": (C.c_int32, [_dp, _sz, _sz, _ip, _ip, _sz, _dp, _dp, _dp]),
         "knndm_ld_mean": (C.c_double, [_dp, _sz]),
         "knndm_ld_sum": (C.c_double, [_dp, _sz]),
+        "knndm_ld_cumsum": (C.c_int32, [_dp, _sz, _dp]),
     }
     for fname, (res, args) in sig.items():
         f = getattr(lib, fname)
@@ -157,6 +158,9 @@ class RustBackend:
         a, b = _f(a), _f(b)
         return _lib.knndm_wass_stat(_pd(a), len(a), _pd(b), len(b))
 
+    def ks_greater_pvalue(self, x, y):
+        return _stats.ks_test_greater_pvalue(x, y, cumsum=ld_cumsum)
+
     def cluster_pc1(self, x, labels, levels, rot, center):
         x, labels, levels = _f(x), _i(labels), _i(levels)
         rot, center = _f(rot), _f(center)
@@ -175,3 +179,10 @@ def ld_mean(x) -> float:
 def ld_sum(x) -> float:
     x = _f(x)
     return _lib.knndm_ld_sum(_pd(x), len(x))
+
+
+def ld_cumsum(x) -> np.ndarray:
+    x = _f(x)
+    out = np.empty(len(x))
+    _lib.knndm_ld_cumsum(_pd(x), len(x), _pd(out))
+    return out
