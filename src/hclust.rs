@@ -44,7 +44,10 @@ pub fn hclust(mut diss: Vec<f64>, n: usize, iopt: i32) -> Vec<[i64; 2]> {
     let mut membr = vec![1.0f64; n + 1];
     let mut nn = vec![0usize; n + 1];
     let mut disnn = vec![0.0f64; n + 1];
-    let mut flag = vec![true; n + 1];
+    // Sorted list of still-active (FLAG = .TRUE.) indices. Iterating it in
+    // order visits exactly the indices the Fortran loops accept, in the same
+    // order, without scanning merged-away ones.
+    let mut active: Vec<usize> = (1..=n).collect();
     let (mut im, mut jj, mut jm) = (0usize, 0usize, 0usize);
     let mut ncl = n;
     if iopt == 8 {
@@ -67,8 +70,8 @@ pub fn hclust(mut diss: Vec<f64>, n: usize, iopt: i32) -> Vec<[i64; 2]> {
     let is_ward = iopt == 1 || iopt == 8;
     loop {
         let mut dmin = INF;
-        for i in 1..n {
-            if flag[i] && disnn[i] < dmin {
+        for &i in &active {
+            if i < n && disnn[i] < dmin {
                 dmin = disnn[i];
                 im = i;
                 jm = nn[i];
@@ -79,11 +82,11 @@ pub fn hclust(mut diss: Vec<f64>, n: usize, iopt: i32) -> Vec<[i64; 2]> {
         let j2 = im.max(jm);
         ia[n - ncl] = i2;
         ib[n - ncl] = j2;
-        flag[j2] = false;
+        active.remove(active.binary_search(&j2).unwrap());
         dmin = INF;
         let d12 = diss[ioffst(n, i2, j2)];
-        for k in 1..=n {
-            if flag[k] && k != i2 {
+        for &k in &active {
+            if k != i2 {
                 let ind1 = if i2 < k { ioffst(n, i2, k) } else { ioffst(n, k, i2) };
                 let ind2 = if j2 < k { ioffst(n, j2, k) } else { ioffst(n, k, j2) };
                 let (d1, d2) = (diss[ind1], diss[ind2]);
@@ -118,17 +121,15 @@ pub fn hclust(mut diss: Vec<f64>, n: usize, iopt: i32) -> Vec<[i64; 2]> {
         membr[i2] += membr[j2];
         disnn[i2] = dmin;
         nn[i2] = jj;
-        for i in 1..n {
-            if flag[i] && (nn[i] == i2 || nn[i] == j2) {
+        for (pos, &i) in active.iter().enumerate() {
+            if i < n && (nn[i] == i2 || nn[i] == j2) {
                 let mut dm = INF;
                 let base = ioffst(n, i, i + 1) - (i + 1);
-                for j in (i + 1)..=n {
-                    if flag[j] {
-                        let v = diss[base + j];
-                        if v < dm {
-                            dm = v;
-                            jj = j;
-                        }
+                for &j in &active[pos + 1..] {
+                    let v = diss[base + j];
+                    if v < dm {
+                        dm = v;
+                        jj = j;
                     }
                 }
                 nn[i] = jj;
