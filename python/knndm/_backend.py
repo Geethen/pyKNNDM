@@ -36,6 +36,10 @@ class PythonBackend:
         return _kmeans.kmeans(x, nk, rng)
 
     @staticmethod
+    def kmeans_many(x: np.ndarray, nks, rng: RRNG, stop_on_error: bool):
+        return _kmeans.kmeans_many(x, nks, rng, stop_on_error)
+
+    @staticmethod
     def cluster_pc1(x, labels, levels, rot, center) -> np.ndarray:
         return np.array([predict_pc1(r_colmeans(x[labels == lv]), center, rot) for lv in levels])
 

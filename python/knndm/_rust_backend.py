@@ -41,6 +41,7 @@ def _load() -> C.CDLL:
         "knndm_hclust_merge": (C.c_int32, [_dp, _sz, _sz, C.c_int32, _ip]),
         "knndm_cutree": (C.c_int32, [_ip, _sz, _sz, _ip]),
         "knndm_kmeans_hw": (C.c_int32, [_dp, _sz, _sz, _dp, _sz, _sz, C.c_int64, _ip]),
+        "knndm_kmeans_batch": (C.c_int32, [_dp, _sz, _sz, _dp, _ip, _sz, _sz, C.c_int64, _ip, _ip]),
         "knndm_cluster_pc1": (C.c_int32, [_dp, _sz, _sz, _ip, _ip, _sz, _dp, _dp, _dp]),
         "knndm_ld_mean": (C.c_double, [_dp, _sz]),
         "knndm_ld_sum": (C.c_double, [_dp, _sz]),
@@ -191,6 +192,26 @@ class RustBackend:
             return (out if ifault not in (1, 3) else None), ifault
 
         return _kmeans.kmeans(x, nk, rng, kmns=kmns)
+
+    def kmeans_many(self, x, nks, rng: RRNG, stop_on_error: bool):
+        def batch(a, centers, iter_max, max_qtr):
+            if not centers:
+                return []
+            a = _f(a)
+            m, p = a.shape
+            for c in centers:
+                _check2d(c, "centers", p)
+            ks = np.array([c.shape[0] for c in centers], dtype=np.int64)
+            cc = _f(np.concatenate(centers, axis=0))
+            out = np.empty((len(centers), m), dtype=np.int64)
+            ifault = np.empty(len(centers), dtype=np.int64)
+            code = _lib.knndm_kmeans_batch(
+                _pd(a), m, p, _pd(cc), _pi(ks), len(centers), int(iter_max), int(max_qtr), _pi(out), _pi(ifault)
+            )
+            _ok(code, "kmeans_batch")
+            return [(out[j], int(ifault[j])) for j in range(len(centers))]
+
+        return _kmeans.kmeans_many(x, nks, rng, stop_on_error, kmns_batch=batch)
 
     def wass_stat(self, a, b):
         a, b = _f(a).ravel(), _f(b).ravel()

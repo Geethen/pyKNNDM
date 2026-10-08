@@ -209,15 +209,21 @@ def _knndm_impl(tp, pp, space, k, maxp, minp, test_prop, clustering, linkf, nk_l
                 "fold labels may differ from R in rare near-tie cases"
             )
 
-        for nk in nks:
+        if clustering == "kmeans":
+            # knndm_geo has no tryCatch around kmeans, so an error there ends the run
+            km_results, km_states = be.kmeans_many(tp, nks, rng, stop_on_error=is_geo)
+
+        for t, nk in enumerate(nks):
             if clustering == "hierarchical":
                 clust_nk = be.cutree(hc_merge, nk)
             else:
-                try:
-                    clust_nk = be.kmeans(tp, nk, rng)
-                except KMeansError:
-                    if is_geo:  # knndm_geo has no tryCatch around kmeans
-                        raise
+                clust_nk = km_results[t]
+                if clust_nk is None:  # not reached: an earlier nk already failed
+                    break
+                if isinstance(clust_nk, KMeansError):
+                    if is_geo:
+                        rng.set_state(km_states[t])  # where R's RNG stood at the error
+                        raise clust_nk
                     continue
             clust_k = _assign_folds(tp, clust_nk, n, k, test_prop, rot, pc_center, be)
 

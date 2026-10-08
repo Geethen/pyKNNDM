@@ -59,8 +59,9 @@ def test_matches_r(path: Path, backend: str):
     rng = RRNG(fx["knndm_seed"])
 
     if "error" in fx:
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match=_re_escape(fx["error"])):
             knndm(tp, pp, space=space, rng=rng, backend=backend, **kw)
+        _assert_rng(rng, fx)
         return
 
     res = knndm(tp, pp, space=space, rng=rng, backend=backend, **kw)
@@ -90,7 +91,17 @@ def test_matches_r(path: Path, backend: str):
         assert np.array_equal(res.indx_test + 1, np.atleast_1d(test[0]))
         assert np.array_equal(res.indx_train + 1, np.atleast_1d(train[0]))
 
-    # the RNG must be left exactly where R leaves .Random.seed
+    _assert_rng(rng, fx)
+
+
+def _re_escape(msg: str) -> str:
+    import re
+
+    return re.escape(msg.strip())
+
+
+def _assert_rng(rng: RRNG, fx: dict) -> None:
+    """The RNG must be left exactly where R leaves .Random.seed."""
     rs = np.array(fx["rng_after"], dtype=np.int64) & 0xFFFFFFFF
     assert rs[1] == rng.mti, "RNG position"
     assert np.array_equal(rs[2:], np.array(rng.mt, dtype=np.int64)), "RNG state"

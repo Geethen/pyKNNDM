@@ -299,3 +299,52 @@ pub unsafe extern "C" fn knndm_ld_cumsum(x: *const f64, n: usize, out: *mut f64)
         0
     })
 }
+
+/// Run several independent Hartigan-Wong solves in parallel. Job `j` uses
+/// `ks[j]` centres taken consecutively from `centers` (row-major, p columns),
+/// writes its 1-based clusters to row `j` of `out` (njobs x m) and R's
+/// `ifault` code to `ifault[j]`.
+///
+/// # Safety
+/// `x` has m * p doubles, `centers` sum(ks) * p, `ks`/`ifault` njobs, `out` njobs * m.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn knndm_kmeans_batch(
+    x: *const f64,
+    m: usize,
+    p: usize,
+    centers: *const f64,
+    ks: *const i64,
+    njobs: usize,
+    iter_max: usize,
+    max_qtr: i64,
+    out: *mut i64,
+    ifault: *mut i64,
+) -> i32 {
+    guard(|| {
+        let a = sl(x, m * p);
+        let ks = sl(ks, njobs);
+        let mut offs = Vec::with_capacity(njobs);
+        let mut acc = 0usize;
+        for &k in ks {
+            offs.push(acc);
+            acc += k as usize;
+        }
+        let cs = sl(centers, acc * p);
+        let res = par::par_map(njobs, |j| {
+            let k = ks[j] as usize;
+            let mut c = cs[offs[j] * p..(offs[j] + k) * p].to_vec();
+            let r = kmeans::kmns(a, m, p, &mut c, k, iter_max, max_qtr);
+            (r.cluster, r.ifault)
+        });
+        let o = sl_mut(out, njobs * m);
+        let f = sl_mut(ifault, njobs);
+        for (j, (cl, fl)) in res.into_iter().enumerate() {
+            f[j] = fl as i64;
+            if !cl.is_empty() {
+                o[j * m..(j + 1) * m].copy_from_slice(&cl);
+            }
+        }
+        0
+    })
+}

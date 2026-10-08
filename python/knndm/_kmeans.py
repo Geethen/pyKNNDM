@@ -28,16 +28,9 @@ def _unique_rows_idx(x: np.ndarray) -> list[int]:
     return keep
 
 
-def kmeans(x: np.ndarray, centers: int, rng: RRNG, iter_max: int = 10, kmns=None) -> np.ndarray:
-    """``stats::kmeans(x, centers)$cluster`` (nstart = 1, Hartigan-Wong).
-
-    ``kmns(x, c, k, iter_max, max_qtr) -> (cluster, ifault)`` may be swapped
-    for a compiled implementation; centre sampling always happens here.
-    """
-    kmns = kmns or _kmns
-    x = np.ascontiguousarray(x, dtype=float)
-    m, p = x.shape
-    k = int(centers)
+def initial_centers(x: np.ndarray, k: int, rng: RRNG) -> np.ndarray:
+    """Starting centres exactly as ``stats::kmeans(x, k)`` draws them (nstart = 1)."""
+    m = x.shape[0]
     if k > m:
         raise KMeansError("cannot take a sample larger than the population when 'replace = FALSE'")
     idx = rng.sample_int(m, k)
@@ -50,12 +43,70 @@ def kmeans(x: np.ndarray, centers: int, rng: RRNG, iter_max: int = 10, kmns=None
         c = x[[uniq[i - 1] for i in idx], :].copy()
     if k == 1:
         raise NotImplementedError("k = 1 uses MacQueen in R; not needed by knndm")
-    ic1, ifault = kmns(x, c, k, iter_max, min(2147483647, 50 * m))
+    return c
+
+
+def _check_ifault(ifault: int) -> None:
     if ifault == 1:
         raise KMeansError("empty cluster: try a better set of initial centers")
     if ifault == 3:
         raise KMeansError("number of cluster centres must lie between 1 and nrow(x)")
+    # 2 (no convergence) and 4 (Quick-TRANSfer limit) are only warnings in R
+
+
+def _max_qtr(m: int) -> int:
+    return min(2147483647, 50 * m)
+
+
+def kmeans(x: np.ndarray, centers: int, rng: RRNG, iter_max: int = 10, kmns=None) -> np.ndarray:
+    """``stats::kmeans(x, centers)$cluster`` (nstart = 1, Hartigan-Wong).
+
+    ``kmns(x, c, k, iter_max, max_qtr) -> (cluster, ifault)`` may be swapped
+    for a compiled implementation; centre sampling always happens here.
+    """
+    kmns = kmns or _kmns
+    x = np.ascontiguousarray(x, dtype=float)
+    k = int(centers)
+    c = initial_centers(x, k, rng)
+    ic1, ifault = kmns(x, c, k, iter_max, _max_qtr(x.shape[0]))
+    _check_ifault(ifault)
     return ic1
+
+
+def kmeans_many(x: np.ndarray, nks, rng: RRNG, stop_on_error: bool, kmns_batch=None, iter_max: int = 10):
+    """``kmeans(x, nk)$cluster`` for each ``nk`` in turn, as R's loop calls it.
+
+    The RNG is only used to draw starting centres, never by the iterations, so
+    all draws are made first (in R's order) and the independent Hartigan-Wong
+    solves can then run in parallel. Returns ``(results, states)``: each result
+    is a cluster vector or a :class:`KMeansError`, and ``states[t]`` is the RNG
+    state right after ``nks[t]``'s draws (to rewind to where R would stop).
+    """
+    x = np.ascontiguousarray(x, dtype=float)
+    out: list = [None] * len(nks)
+    states: list = [None] * len(nks)
+    jobs: list[tuple[int, np.ndarray]] = []
+    for t, nk in enumerate(nks):
+        try:
+            jobs.append((t, initial_centers(x, int(nk), rng)))
+        except KMeansError as e:
+            out[t] = e
+            states[t] = rng.get_state()
+            if stop_on_error:
+                break
+            continue
+        states[t] = rng.get_state()
+    if kmns_batch is None:
+        solved = [_kmns(x, c, c.shape[0], iter_max, _max_qtr(x.shape[0])) for _, c in jobs]
+    else:
+        solved = kmns_batch(x, [c for _, c in jobs], iter_max, _max_qtr(x.shape[0]))
+    for (t, _), (ic1, ifault) in zip(jobs, solved):
+        try:
+            _check_ifault(ifault)
+            out[t] = ic1
+        except KMeansError as e:
+            out[t] = e
+    return out, states
 
 
 def _kmns(a: np.ndarray, c: np.ndarray, k: int, iter_max: int, max_qtr: int):
