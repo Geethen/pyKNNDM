@@ -11,7 +11,7 @@ A bit-exact port of [`CAST::knndm`](https://github.com/HannaMeyer/CAST) from R, 
 [![Rust kernels](https://img.shields.io/badge/kernels-Rust%20(optional)-dea584.svg)](src/)
 [![Paper: GMD 2024](https://img.shields.io/badge/paper-GMD%202024-2e7d32.svg)](https://doi.org/10.5194/gmd-17-5897-2024)
 
-[Quickstart](#quickstart) · [Usage](#usage) · [How it works](#how-it-works) · [Bit-exactness](#bit-exactness) · [Performance](#performance) · [Citation](#citation)
+[Quickstart](#quickstart) · [Usage](#usage) · [TWCV](#target-weighted-cv-twcv) · [How it works](#how-it-works) · [Bit-exactness](#bit-exactness) · [Performance](#performance) · [Citation](#citation)
 
 </div>
 
@@ -140,6 +140,50 @@ columns by name.
 
 </details>
 
+## Target-weighted CV (TWCV)
+
+kNNDM fold design reduces the mismatch between CV and prediction distances but cannot remove it entirely. TWCV ([Brenning & Suesse, 2026](https://arxiv.org/abs/2603.29981), reference R code [TWCVpaper](https://github.com/alexanderbrenning/TWCVpaper)) reweights the held-out CV predictions so that their prediction distance (and optionally covariates) match the distribution at the prediction locations. Weighted CV losses then estimate the error of the prediction map rather than of the CV design.
+
+```python
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import cross_val_predict
+from knndm import dwcv_weights, twcv_weights, weight_diagnostics, weighted_cv_error
+
+# Out-of-fold predictions using kNNDM CV folds
+cv = list(zip(res.indx_train, res.indx_test))
+# X, y: training predictors/response; X_pred: the same predictors at pred_xy
+oof = cross_val_predict(RandomForestRegressor(), X, y, cv=cv)
+
+# Balance prediction distances and environmental covariates (TWCV)
+tw = twcv_weights(train_xy, pred_xy, res, train_covariates=X, pred_covariates=X_pred)
+
+# Compare weighted map error against unweighted CV error
+weighted_cv_error(y, oof, tw.weights)   # {'bias': ..., 'mse': ..., 'rmse': ..., 'mae': ...}
+weighted_cv_error(y, oof)              # unweighted baseline
+
+# Inspect effective sample size and weight concentration
+weight_diagnostics(tw.weights)
+
+# Or balance prediction distance alone without covariates (DWCV)
+dw = dwcv_weights(train_xy, pred_xy, res)
+```
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `train_xy`, `pred_xy` | – | `(n, 2)` and `(m, 2)` projected coordinates of training and prediction locations |
+| `folds` | – | Fold label per training point (e.g. `res.clusters` or a `KNNDMResult`) |
+| `train_covariates`, `pred_covariates` | `None` | Optional covariates to balance on (array or DataFrame) |
+| `include_distance` | `True` | Also balance the prediction distance `d` |
+| `balance_by` | `0.2` | Quantile step for discretising numeric descriptors (`0.2` = quintiles) |
+| `shrink_lambda` | `0.2` | Shrinkage towards uniform weights: `(1 - lambda) * w + lambda` |
+| `max_iter`, `tol` | `500`, `1e-6` | Raking stops after `max_iter` sweeps or when the largest relative weight change is below `tol` |
+
+`dwcv_weights` takes the same arguments except the covariates and `include_distance`, and defaults to `shrink_lambda=0`.
+
+`twcv_weights` returns a `TWCVWeights` dataclass containing the calibration weights (`.weights`, shrunk, mean 1; use with `weighted_cv_error`), raw raked weights (`.weights_raw`), convergence status (`.converged`, `.iterations`), and realised distances (`.d_cv`, `.d_pred`).
+
+Results match the paper's R code bit for bit on R 4.5 for Windows x86-64 (tested against R-generated fixtures). On Linux R, `sqrt` is correctly rounded, so `d_cv` and RMSE can differ in the last bit. Where a quantile bin of the prediction locations is empty (tied values, e.g. distances on a regular raster), the R code shifts the target shares onto the wrong bins; here the bin gets a share of 0 and a warning is raised. Importance-weighted CV (IWCV) is not ported. Weights with a low effective sample size (`ess_fraction` in `weight_diagnostics`) mean the target is poorly covered by the samples, so treat the estimate with caution.
+
 ## How it works
 
 1. **Measure the target.** For every prediction location, find the distance to its
@@ -255,6 +299,23 @@ If you use kNNDM, please cite the original paper:
   pages   = {5897--5912},
   year    = {2024},
   doi     = {10.5194/gmd-17-5897-2024}
+}
+```
+
+If you use target-weighted cross-validation (TWCV / DWCV), please cite Brenning & Suesse (2026):
+
+> Brenning, A., and Suesse, T. (2026). Aligning Validation with Deployment in
+> Spatial Prediction: Target-Weighted Cross-Validation.
+> *arXiv:2603.29981*.
+> https://doi.org/10.48550/arXiv.2603.29981
+
+```bibtex
+@article{brenning2026twcv,
+  title   = {Aligning Validation with Deployment in Spatial Prediction: Target-Weighted Cross-Validation},
+  author  = {Brenning, Alexander and Suesse, Thomas},
+  journal = {arXiv preprint arXiv:2603.29981},
+  year    = {2026},
+  doi     = {10.48550/arXiv.2603.29981}
 }
 ```
 

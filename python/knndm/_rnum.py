@@ -110,10 +110,36 @@ class LongDouble:
 
 def r_sum(x) -> float:
     """``sum(x)`` for a double vector (rsum: long double accumulation)."""
+    a = np.asarray(x, dtype=float)
+    if not np.isfinite(a).all():
+        return float(np.sum(a))  # Inf / NaN propagate as in R
     acc = LongDouble()
     for v in x:
         acc.add(float(v))
     return acc.to_double()
+
+
+def r_sqrt(x) -> np.ndarray:
+    """R-level ``sqrt()`` as in R for Windows (mingw-w64 x87 ``fsqrt``).
+
+    The root is rounded to the 64-bit x87 significand, then to double, so it
+    can differ from IEEE ``sqrt`` by 1 ulp when the first rounding lands on a
+    double midpoint. Compiled code (``stats::dist``, FNN) is not affected.
+    """
+    a = np.asarray(x, dtype=float)
+    flat_out = np.sqrt(a.ravel())
+    for i, v in enumerate(a.ravel().tolist()):
+        if not (v > 0.0 and math.isfinite(v)):
+            continue
+        m, e = _from_double(v)
+        if e & 1:
+            m, e = m << 1, e - 1
+        m, e = m << 140, e - 140  # root gets >= 70 bits
+        r = math.isqrt(m)
+        q = (r << 1) | (1 if r * r != m else 0)  # sticky bit
+        qm, qe = _round_bits(q, e // 2 - 1, _LD_BITS)
+        flat_out[i] = _to_double(qm, qe)
+    return flat_out.reshape(a.shape)
 
 
 def r_cumsum(x) -> np.ndarray:

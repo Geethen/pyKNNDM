@@ -26,7 +26,7 @@ Issues = "https://github.com/Geethen/pyKNNDM/issues"
 "Original R package (CAST)" = "https://github.com/HannaMeyer/CAST"
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "pandas"]
 
 [tool.setuptools.packages.find]
 where = ["python"]
