@@ -11,3 +11,12 @@ prof.out
 *.egg-info/
 bench/data/
 bench/*.log
+build/
+dist/
+reference/lapack_check/*.ndjson
+*.whl
+*.pyd
+.coverage
+.DS_Store
+.idea/
+.vscode/

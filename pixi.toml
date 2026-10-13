@@ -1,14 +1,14 @@
 [workspace]
-authors = ["Geethen <geethen.singh@gmail.com>"]
+authors = ["Geethen Singh"]
 channels = ["conda-forge"]
 name = "knndm"
 platforms = ["win-64"]
 version = "0.1.0"
 
 [tasks]
-# pixi supplies only the Rust toolchain (conda-forge rust + MinGW linker).
-# Python comes from the uv-managed .venv (see README).
-build-rust = { cmd = "cargo build --release && cp target/x86_64-pc-windows-gnu/release/knndm_rs.dll python/knndm/knndm_rs.dll" }
+# Windows convenience: pixi supplies the Rust toolchain (conda-forge rust + MinGW linker),
+# so no Visual Studio is needed. On Linux/macOS just use a system cargo (see README).
+build-rust = { cmd = "cargo build --release --target x86_64-pc-windows-gnu && cp target/x86_64-pc-windows-gnu/release/knndm_rs.dll python/knndm/knndm_rs.dll", env = { CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER = "x86_64-w64-mingw32-gcc" } }
 
 [dependencies]
 rust = ">=1.80"

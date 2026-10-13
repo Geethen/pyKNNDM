@@ -126,7 +126,7 @@ def test_rust_rejects_bad_shapes_instead_of_crashing():
         be.knnx_dist(np.zeros((2, 3)), np.zeros((2, 2)))
     with pytest.raises(ValueError):
         be.cv_distances(np.zeros((5, 2)), np.array([1, 2, 1]))
-    assert np.isnan(be.wass_stat(np.array([np.nan, 1.0]), np.array([0.0, 2.0]))) or True  # must not abort
+    assert isinstance(be.wass_stat(np.array([np.nan, 1.0]), np.array([0.0, 2.0])), float)  # must not abort
 
 
 def test_knndm_input_validation():
@@ -139,3 +139,45 @@ def test_knndm_input_validation():
         knndm(np.vstack([tp, [[np.nan, 1.0]]]), tp, seed=1)
     with pytest.raises(ValueError):
         knndm(tp, tp, nk_len=0, seed=1)
+
+
+def test_knndm_k_validation():
+    from knndm import knndm
+
+    tp = np.random.default_rng(0).uniform(0, 100, (20, 2))
+    for k in (1, 0, 2.5, 21):
+        with pytest.raises(ValueError):
+            knndm(tp, tp, k=k, seed=1)
+
+
+def test_knndm_zero_variance_predictor():
+    from knndm import knndm
+
+    rs = np.random.default_rng(0)
+    tp = np.column_stack([rs.normal(size=20), np.ones(20)])
+    with pytest.raises(ValueError, match="zero variance"):
+        knndm(tp, tp, space="feature", k=3, seed=1)
+
+
+def test_as_matrix_rejects_bad_shapes():
+    from knndm.core import _as_matrix
+
+    with pytest.raises(ValueError):
+        _as_matrix(np.zeros((4, 2, 2)))
+    with pytest.raises(ValueError):
+        _as_matrix(np.zeros((4, 0)))
+
+
+def test_feature_dataframe_columns_matched_by_name():
+    pd = pytest.importorskip("pandas")
+    from knndm import knndm
+
+    rs = np.random.default_rng(1)
+    t = pd.DataFrame({"a": rs.normal(size=30), "b": rs.normal(size=30) * 3})
+    p = pd.DataFrame({"a": rs.normal(size=40), "b": rs.normal(size=40) * 3})
+    r1 = knndm(t, p, space="feature", k=3, seed=1)
+    r2 = knndm(t, p[["b", "a"]], space="feature", k=3, seed=1)
+    r3 = knndm(t, p.assign(extra=1.0)[["extra", "b", "a"]], space="feature", k=3, seed=1)
+    for r in (r2, r3):
+        assert r.W == r1.W and r.q == r1.q
+        assert np.array_equal(r.clusters, r1.clusters)

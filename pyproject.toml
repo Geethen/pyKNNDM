@@ -6,8 +6,24 @@ build-backend = "setuptools.build_meta"
 name = "knndm"
 version = "0.1.0"
 description = "Bit-exact Python port of CAST::knndm (k-fold nearest neighbour distance matching) with optional Rust kernels"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Geethen Singh" }]
+keywords = ["knndm", "CAST", "spatial cross-validation", "nearest neighbour distance matching", "GIS"]
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Operating System :: OS Independent",
+]
 requires-python = ">=3.9"
 dependencies = ["numpy>=1.22", "scipy>=1.8"]
+
+[project.urls]
+Homepage = "https://github.com/Geethen/pyKNNDM"
+Issues = "https://github.com/Geethen/pyKNNDM/issues"
+"Original R package (CAST)" = "https://github.com/HannaMeyer/CAST"
 
 [project.optional-dependencies]
 test = ["pytest"]

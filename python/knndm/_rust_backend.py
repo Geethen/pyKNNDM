@@ -1,7 +1,7 @@
 """Backend backed by the compiled Rust kernels (``knndm_rs.dll``/``.so``), via ctypes.
 
-The Rust crate exposes a plain C ABI and has no dependencies, so it builds
-without running any build-script executables (see ``.cargo/config.toml``).
+The Rust crate exposes a plain C ABI and has no dependencies. Set
+``KNNDM_RS_LIB`` to load a library from a custom path.
 """
 
 from __future__ import annotations

@@ -189,7 +189,8 @@ def r_scale(x: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     n = x.shape[0]
     denom = max(1, n - 1)
     sc = np.array([math.sqrt(r_sum(xc[:, j] * xc[:, j]) / denom) for j in range(x.shape[1])])
-    return xc / sc[None, :], center, sc
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return xc / sc[None, :], center, sc
 
 
 def prcomp_rank1(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:

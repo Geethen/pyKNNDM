@@ -1,9 +1,0 @@
-# Build with the pixi-provided toolchain (conda-forge rust + MinGW gcc).
-# The windows-gnu target links without Visual Studio, and the crate has no
-# dependencies, so no build-script executables need to run (new executables
-# are blocked by endpoint policy on this machine; DLLs load fine).
-[build]
-target = "x86_64-pc-windows-gnu"
-
-[target.x86_64-pc-windows-gnu]
-linker = "x86_64-w64-mingw32-gcc"

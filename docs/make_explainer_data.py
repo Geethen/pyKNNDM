@@ -5,6 +5,7 @@ CAST does not return (W for every candidate nk, folds per nk, the PC1 ordering
 of clusters), re-using the package internals so the numbers are the real ones.
 
     python docs/make_explainer_data.py > docs/explainer_data.json
+    python docs/make_explainer_data.py --build   # also rebuild docs/knndm_explainer.html
 """
 
 from __future__ import annotations
@@ -107,7 +108,14 @@ def main():
         "pc1_dir": [round(float(v), 4) for v in rot],
         "pc1_center": [round(float(v), 2) for v in ctr],
     }
-    json.dump(out, sys.stdout, separators=(",", ":"))
+    if "--build" in sys.argv[1:]:
+        here = Path(__file__).resolve().parent
+        data = json.dumps(out, separators=(",", ":"))
+        (here / "explainer_data.json").write_text(data, encoding="utf-8", newline="")
+        page = (here / "explainer_template.html").read_text(encoding="utf-8").replace("__DATA__", data)
+        (here / "knndm_explainer.html").write_text(page, encoding="utf-8", newline="")
+    else:
+        json.dump(out, sys.stdout, separators=(",", ":"))
 
 
 if __name__ == "__main__":

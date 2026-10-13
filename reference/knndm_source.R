@@ -1,5 +1,3 @@
-Warning message:
-package 'CAST' was built under R version 4.5.3 
  [1] "check_knndm_feature" "check_knndm_geo"     "distclust_distmat"  
  [4] "knndm"               "knndm_feature"       "knndm_geo"          
  [7] "nndm"                "nndm_checks_feature" "nndm_checks_geo"    

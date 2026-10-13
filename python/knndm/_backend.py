@@ -1,7 +1,7 @@
 """Compute backends. Both must produce bit-identical results.
 
-``PythonBackend`` is the readable reference port; ``RustBackend`` wraps the
-compiled ``knndm._rust`` extension for speed.
+``PythonBackend`` is the readable reference port; ``RustBackend`` calls the
+``knndm_rs`` shared library (loaded with ctypes) for speed.
 """
 
 from __future__ import annotations

@@ -74,6 +74,8 @@ def knndm(
         raise ValueError(
             "predpoints are required: sampling prediction locations from a modeldomain is not ported"
         )
+    if test_prop is None and (isinstance(k, bool) or not isinstance(k, (int, np.integer)) or k < 2):
+        raise ValueError("k must be an integer >= 2")
     if rng is None:
         rng = RRNG(seed if seed is not None else int.from_bytes(np.random.bytes(4), "little"))
     elif seed is not None:
@@ -127,6 +129,8 @@ def knndm(
         t_names, p_names = _colnames(tpoints), _colnames(predpoints)
         if t_names is not None and p_names is not None and set(t_names) - set(p_names):
             raise ValueError("tpoints and predpoints need to contain the predictor data and have the same colnames.")
+        if t_names is not None and p_names is not None and p_names != t_names:
+            predpoints = predpoints[list(tpoints.columns)]
         tp = _as_matrix(tpoints, numeric_only=True)
         pp = _as_matrix(predpoints, numeric_only=True)
         if tp.shape[1] != pp.shape[1]:
@@ -147,8 +151,13 @@ def knndm(
     if test_prop is None and not (maxp < 1 and maxp > 1 / k):
         raise ValueError("maxp must be strictly between 1/k and 1")
 
+    if test_prop is None and k > tp.shape[0]:
+        raise ValueError("k must not exceed the number of training points")
+
     if space == "feature" and scale_vars:
         tp, center, sc = r_scale(tp)
+        if not (np.isfinite(sc).all() and (sc > 0).all()):
+            raise ValueError("predictor(s) with zero variance cannot be scaled")
         pp = (pp - center[None, :]) / sc[None, :]
 
     return _knndm_impl(tp, pp, space, k, maxp, minp, test_prop, clustering, linkf, nk_len, rng, be, msgs)
@@ -169,6 +178,8 @@ def _as_matrix(x, numeric_only: bool = False) -> np.ndarray:
     a = np.asarray(x, dtype=float)
     if a.ndim == 1:
         a = a[:, None]
+    if a.ndim != 2 or a.shape[1] == 0:
+        raise ValueError("points must be a 2-D array with at least one column")
     return np.ascontiguousarray(a)
 
 

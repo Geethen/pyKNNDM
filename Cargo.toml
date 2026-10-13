@@ -2,13 +2,16 @@
 name = "knndm"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.80"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/Geethen/pyKNNDM"
 description = "Bit-exact kernels for the knndm Python package (C ABI, loaded via ctypes)"
 
 [lib]
 name = "knndm_rs"
 crate-type = ["cdylib", "rlib"]
 
-# Intentionally dependency-free: no build scripts or proc-macros to execute.
+# Intentionally dependency-free (plain C ABI, loaded via ctypes).
 [dependencies]
 
 [profile.release]

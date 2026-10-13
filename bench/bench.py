@@ -56,7 +56,7 @@ def report(out=None):
                 w = x["W_hex"] == r["W_hex"]; return "yes" if w else "NO"
             def sameq(x):
                 if not (x and r): return "n/a"
-                return "yes" if float(x["q"]) == float(r["q"]) or int(float(x["q"])) == int(float(r["q"])) else "NO"
+                return "yes" if float(x["q"]) == float(r["q"]) else "NO"
             wi = "/".join(f"{k}:{same(x)}" for k, x in (("py", a), ("rs", b)) if x)
             qi = "/".join(f"{k}:{sameq(x)}" for k, x in (("py", a), ("rs", b)) if x)
             lines.append(f"| {nm} | {cl} | {f(r)} | {f(a)} | {f(b)} | {sp} | {wi} | {qi} |")

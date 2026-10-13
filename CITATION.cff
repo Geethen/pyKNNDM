@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the kNNDM paper below."
+title: "knndm: bit-exact Python port of CAST::knndm"
+type: software
+authors:
+  - family-names: Singh
+    given-names: Geethen
+license: GPL-3.0-or-later
+repository-code: "https://github.com/Geethen/pyKNNDM"
+version: 0.1.0
+keywords: [cross-validation, spatial, knndm, CAST]
+references:
+  - type: software
+    title: "CAST: 'caret' Applications for Spatial-Temporal Models"
+    authors:
+      - family-names: Meyer
+        given-names: Hanna
+    url: "https://github.com/HannaMeyer/CAST"
+preferred-citation:
+  type: article
+  title: "kNNDM CV: k-fold nearest-neighbour distance matching cross-validation for map accuracy estimation"
+  authors:
+    - family-names: Linnenbrink
+      given-names: Jan
+    - family-names: Milà
+      given-names: Carles
+    - family-names: Ludwig
+      given-names: Marvin
+    - family-names: Meyer
+      given-names: Hanna
+  journal: "Geoscientific Model Development"
+  volume: 17
+  issue: 15
+  start: 5897
+  end: 5912
+  year: 2024
+  doi: "10.5194/gmd-17-5897-2024"
